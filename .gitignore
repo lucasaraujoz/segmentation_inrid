@@ -1,0 +1,6 @@
+__pycache__
+.github/
+.vscode/
+A. Segmentation
+outputs/
+inrid.zip
