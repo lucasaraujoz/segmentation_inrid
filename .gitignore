@@ -4,3 +4,4 @@ __pycache__
 A. Segmentation
 outputs/
 inrid.zip
+*.log

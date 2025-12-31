@@ -107,14 +107,10 @@ def main():
     print(f"\nMean Dice: {results_df['best_val_dice'].mean():.4f} ± {results_df['best_val_dice'].std():.4f}")
     print(f"Mean IoU: {results_df['best_val_iou'].mean():.4f} ± {results_df['best_val_iou'].std():.4f}")
     
-    # Final evaluation on test set using best fold model
+    # Final evaluation on test set
     print("\n" + "=" * 80)
     print("FINAL TEST SET EVALUATION")
     print("=" * 80)
-    
-    # Use best fold model (highest validation dice)
-    best_fold = results_df.loc[results_df['best_val_dice'].idxmax(), 'fold']
-    best_model_path = f"{config.checkpoint_dir}/best_model_fold{int(best_fold)}.pth"
     
     # Create test dataset
     test_dataset = ROPDataset(
@@ -123,11 +119,35 @@ def main():
         is_train=False
     )
     
-    # Evaluate
-    test_results = worker.evaluate(
-        test_dataset=test_dataset,
-        model_path=best_model_path
-    )
+    if config.use_ensemble:
+        # Evaluate using ensemble of all folds
+        print("\nUsing ensemble of all 5 folds...")
+        model_paths = [
+            f"{config.checkpoint_dir}/best_model_fold{i}.pth" 
+            for i in range(1, config.n_folds + 1)
+        ]
+        test_results = worker.evaluate_ensemble(
+            test_dataset=test_dataset,
+            model_paths=model_paths,
+            use_tta=config.use_tta
+        )
+    else:
+        # Use best fold model (highest validation dice)
+        best_fold = results_df.loc[results_df['best_val_dice'].idxmax(), 'fold']
+        best_model_path = f"{config.checkpoint_dir}/best_model_fold{int(best_fold)}.pth"
+        print(f"\nUsing best fold model: Fold {int(best_fold)}")
+        
+        # Evaluate with TTA if enabled
+        if config.use_tta:
+            test_results = worker.evaluate_with_tta(
+                test_dataset=test_dataset,
+                model_path=best_model_path
+            )
+        else:
+            test_results = worker.evaluate(
+                test_dataset=test_dataset,
+                model_path=best_model_path
+            )
     
     print("\n" + "=" * 80)
     print("Pipeline completed successfully!")

@@ -47,6 +47,15 @@ class TrainAndEvalWorker:
         Returns:
             Loss function
         """
+        # Get class weights if enabled
+        class_weights = None
+        if self.config.use_class_weights:
+            class_weights = torch.tensor(
+                self.config.class_weights, 
+                dtype=torch.float32
+            ).to(self.device)
+            print(f"Using class weights: {self.config.class_weights}")
+        
         if self.config.loss_type == "bce":
             return nn.BCEWithLogitsLoss()
         elif self.config.loss_type == "dice":
@@ -58,7 +67,7 @@ class TrainAndEvalWorker:
                 gamma=self.config.focal_gamma
             )
         elif self.config.loss_type == "dice_focal":
-            # Combine Dice and Focal Loss
+            # Combine Dice and Focal Loss with class weighting
             dice_loss = smp.losses.DiceLoss(mode='multilabel', from_logits=True)
             focal_loss = smp.losses.FocalLoss(
                 mode='multilabel',
@@ -67,20 +76,48 @@ class TrainAndEvalWorker:
             )
             
             class CombinedLoss(nn.Module):
-                def __init__(self, dice_loss, focal_loss, dice_weight, focal_weight):
+                def __init__(self, dice_loss, focal_loss, dice_weight, focal_weight, class_weights=None):
                     super().__init__()
                     self.dice_loss = dice_loss
                     self.focal_loss = focal_loss
                     self.dice_weight = dice_weight
                     self.focal_weight = focal_weight
+                    self.class_weights = class_weights
                 
                 def forward(self, pred, target):
-                    return (self.dice_weight * self.dice_loss(pred, target) +
-                            self.focal_weight * self.focal_loss(pred, target))
+                    dice = self.dice_loss(pred, target)
+                    focal = self.focal_loss(pred, target)
+                    
+                    # Apply class weights if provided
+                    if self.class_weights is not None:
+                        # Compute per-class losses
+                        batch_size = pred.size(0)
+                        num_classes = pred.size(1)
+                        
+                        # Weighted combination
+                        weighted_dice = 0
+                        weighted_focal = 0
+                        for c in range(num_classes):
+                            # Extract class-specific predictions and targets
+                            pred_c = pred[:, c:c+1, :, :]
+                            target_c = target[:, c:c+1, :, :]
+                            
+                            dice_c = self.dice_loss(pred_c, target_c)
+                            focal_c = self.focal_loss(pred_c, target_c)
+                            
+                            weighted_dice += self.class_weights[c] * dice_c
+                            weighted_focal += self.class_weights[c] * focal_c
+                        
+                        # Normalize by sum of weights
+                        dice = weighted_dice / self.class_weights.sum()
+                        focal = weighted_focal / self.class_weights.sum()
+                    
+                    return self.dice_weight * dice + self.focal_weight * focal
             
             return CombinedLoss(
                 dice_loss, focal_loss,
-                self.config.dice_weight, self.config.focal_weight
+                self.config.dice_weight, self.config.focal_weight,
+                class_weights
             )
         else:
             raise ValueError(f"Unknown loss type: {self.config.loss_type}")
@@ -452,6 +489,265 @@ class TrainAndEvalWorker:
         
         # Print results
         print("\n=== Test Results ===")
+        print(f"Mean Dice: {results['mean_dice']:.4f}")
+        print(f"Mean IoU: {results['mean_iou']:.4f}")
+        for class_name in self.config.classes:
+            print(f"{class_name.capitalize()} - Dice: {results[f'dice_{class_name}']:.4f}, "
+                  f"IoU: {results[f'iou_{class_name}']:.4f}")
+        
+        return results
+    
+    def _apply_tta_transform(self, image: torch.Tensor, transform_name: str) -> torch.Tensor:
+        """Apply TTA transformation to image.
+        
+        Args:
+            image: Input image tensor [B, C, H, W]
+            transform_name: Name of transformation
+            
+        Returns:
+            Transformed image
+        """
+        if transform_name == 'original':
+            return image
+        elif transform_name == 'horizontal_flip':
+            return torch.flip(image, dims=[3])
+        elif transform_name == 'vertical_flip':
+            return torch.flip(image, dims=[2])
+        elif transform_name == 'rotate_90':
+            return torch.rot90(image, k=1, dims=[2, 3])
+        elif transform_name == 'rotate_180':
+            return torch.rot90(image, k=2, dims=[2, 3])
+        elif transform_name == 'rotate_270':
+            return torch.rot90(image, k=3, dims=[2, 3])
+        else:
+            return image
+    
+    def _reverse_tta_transform(self, pred: torch.Tensor, transform_name: str) -> torch.Tensor:
+        """Reverse TTA transformation on prediction.
+        
+        Args:
+            pred: Prediction tensor [B, C, H, W]
+            transform_name: Name of transformation to reverse
+            
+        Returns:
+            Reversed prediction
+        """
+        if transform_name == 'original':
+            return pred
+        elif transform_name == 'horizontal_flip':
+            return torch.flip(pred, dims=[3])
+        elif transform_name == 'vertical_flip':
+            return torch.flip(pred, dims=[2])
+        elif transform_name == 'rotate_90':
+            return torch.rot90(pred, k=3, dims=[2, 3])  # Reverse is k=3
+        elif transform_name == 'rotate_180':
+            return torch.rot90(pred, k=2, dims=[2, 3])
+        elif transform_name == 'rotate_270':
+            return torch.rot90(pred, k=1, dims=[2, 3])  # Reverse is k=1
+        else:
+            return pred
+    
+    def evaluate_with_tta(
+        self,
+        test_dataset,
+        model_path: str
+    ) -> Dict[str, float]:
+        """Evaluate model on test set with Test Time Augmentation.
+        
+        Args:
+            test_dataset: Test dataset
+            model_path: Path to saved model weights
+            
+        Returns:
+            Dictionary with evaluation metrics
+        """
+        print(f"\nEvaluating with TTA from {model_path}")
+        print(f"TTA Transforms: {self.config.tta_transforms}")
+        
+        # Create model and load weights
+        model = self.create_model()
+        checkpoint = torch.load(model_path, weights_only=False)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.eval()
+        
+        # Create dataloader
+        test_loader = self.create_dataloader(test_dataset, shuffle=False)
+        
+        # Metrics
+        dice_meter = AverageMeter()
+        iou_meter = AverageMeter()
+        dice_per_class = [AverageMeter() for _ in range(self.config.num_classes)]
+        iou_per_class = [AverageMeter() for _ in range(self.config.num_classes)]
+        
+        with torch.no_grad():
+            pbar = tqdm(test_loader, desc="Testing with TTA")
+            for batch in pbar:
+                images = batch['image'].to(self.device)
+                masks = batch['mask'].to(self.device)
+                
+                # Accumulate predictions from all TTA transforms
+                tta_preds = []
+                for transform_name in self.config.tta_transforms:
+                    # Apply transform
+                    transformed_img = self._apply_tta_transform(images, transform_name)
+                    
+                    # Forward pass
+                    outputs = model(transformed_img)
+                    preds = torch.sigmoid(outputs)
+                    
+                    # Reverse transform on prediction
+                    preds = self._reverse_tta_transform(preds, transform_name)
+                    tta_preds.append(preds)
+                
+                # Average all TTA predictions
+                final_preds = torch.stack(tta_preds).mean(dim=0)
+                
+                # Calculate metrics
+                dice = calculate_dice_score(final_preds, masks)
+                iou = calculate_iou_score(final_preds, masks)
+                
+                # Update overall metrics
+                dice_meter.update(dice.mean().item(), images.size(0))
+                iou_meter.update(iou.mean().item(), images.size(0))
+                
+                # Update per-class metrics
+                for class_idx in range(self.config.num_classes):
+                    dice_per_class[class_idx].update(
+                        dice[class_idx].item(), images.size(0)
+                    )
+                    iou_per_class[class_idx].update(
+                        iou[class_idx].item(), images.size(0)
+                    )
+                
+                pbar.set_postfix({
+                    'dice': dice_meter.avg,
+                    'iou': iou_meter.avg
+                })
+        
+        # Compile results
+        results = {
+            'mean_dice': dice_meter.avg,
+            'mean_iou': iou_meter.avg
+        }
+        
+        for class_idx, class_name in enumerate(self.config.classes):
+            results[f'dice_{class_name}'] = dice_per_class[class_idx].avg
+            results[f'iou_{class_name}'] = iou_per_class[class_idx].avg
+        
+        # Print results
+        print("\n=== Test Results (with TTA) ===")
+        print(f"Mean Dice: {results['mean_dice']:.4f}")
+        print(f"Mean IoU: {results['mean_iou']:.4f}")
+        for class_name in self.config.classes:
+            print(f"{class_name.capitalize()} - Dice: {results[f'dice_{class_name}']:.4f}, "
+                  f"IoU: {results[f'iou_{class_name}']:.4f}")
+        
+        return results
+    
+    def evaluate_ensemble(
+        self,
+        test_dataset,
+        model_paths: list,
+        use_tta: bool = False
+    ) -> Dict[str, float]:
+        """Evaluate using ensemble of multiple models.
+        
+        Args:
+            test_dataset: Test dataset
+            model_paths: List of paths to saved model weights
+            use_tta: Whether to use TTA for each model
+            
+        Returns:
+            Dictionary with evaluation metrics
+        """
+        print(f"\nEvaluating ensemble of {len(model_paths)} models")
+        if use_tta:
+            print(f"With TTA: {self.config.tta_transforms}")
+        
+        # Load all models
+        models = []
+        for path in model_paths:
+            model = self.create_model()
+            checkpoint = torch.load(path, weights_only=False)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            model.eval()
+            models.append(model)
+        
+        # Create dataloader
+        test_loader = self.create_dataloader(test_dataset, shuffle=False)
+        
+        # Metrics
+        dice_meter = AverageMeter()
+        iou_meter = AverageMeter()
+        dice_per_class = [AverageMeter() for _ in range(self.config.num_classes)]
+        iou_per_class = [AverageMeter() for _ in range(self.config.num_classes)]
+        
+        with torch.no_grad():
+            pbar = tqdm(test_loader, desc="Testing with Ensemble")
+            for batch in pbar:
+                images = batch['image'].to(self.device)
+                masks = batch['mask'].to(self.device)
+                
+                # Accumulate predictions from all models
+                ensemble_preds = []
+                
+                for model in models:
+                    if use_tta:
+                        # TTA for this model
+                        tta_preds = []
+                        for transform_name in self.config.tta_transforms:
+                            transformed_img = self._apply_tta_transform(images, transform_name)
+                            outputs = model(transformed_img)
+                            preds = torch.sigmoid(outputs)
+                            preds = self._reverse_tta_transform(preds, transform_name)
+                            tta_preds.append(preds)
+                        # Average TTA predictions for this model
+                        model_pred = torch.stack(tta_preds).mean(dim=0)
+                    else:
+                        # Single prediction
+                        outputs = model(images)
+                        model_pred = torch.sigmoid(outputs)
+                    
+                    ensemble_preds.append(model_pred)
+                
+                # Average all model predictions
+                final_preds = torch.stack(ensemble_preds).mean(dim=0)
+                
+                # Calculate metrics
+                dice = calculate_dice_score(final_preds, masks)
+                iou = calculate_iou_score(final_preds, masks)
+                
+                # Update overall metrics
+                dice_meter.update(dice.mean().item(), images.size(0))
+                iou_meter.update(iou.mean().item(), images.size(0))
+                
+                # Update per-class metrics
+                for class_idx in range(self.config.num_classes):
+                    dice_per_class[class_idx].update(
+                        dice[class_idx].item(), images.size(0)
+                    )
+                    iou_per_class[class_idx].update(
+                        iou[class_idx].item(), images.size(0)
+                    )
+                
+                pbar.set_postfix({
+                    'dice': dice_meter.avg,
+                    'iou': iou_meter.avg
+                })
+        
+        # Compile results
+        results = {
+            'mean_dice': dice_meter.avg,
+            'mean_iou': iou_meter.avg
+        }
+        
+        for class_idx, class_name in enumerate(self.config.classes):
+            results[f'dice_{class_name}'] = dice_per_class[class_idx].avg
+            results[f'iou_{class_name}'] = iou_per_class[class_idx].avg
+        
+        # Print results
+        tta_str = " + TTA" if use_tta else ""
+        print(f"\n=== Test Results (Ensemble{tta_str}) ===")
         print(f"Mean Dice: {results['mean_dice']:.4f}")
         print(f"Mean IoU: {results['mean_iou']:.4f}")
         for class_name in self.config.classes:

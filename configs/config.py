@@ -59,6 +59,28 @@ class Config:
     focal_alpha: float = 0.25
     focal_gamma: float = 2.0
     
+    # Class weighting (give more importance to harder class)
+    use_class_weights: bool = True
+    class_weights: List[float] = field(default_factory=lambda: [
+        1.0,  # exudates (baseline)
+        1.3   # haemorrhages (harder, gets more weight)
+    ])
+    
+    # Test Time Augmentation
+    use_tta: bool = True
+    tta_transforms: List[str] = field(default_factory=lambda: [
+        'original',
+        'horizontal_flip',
+        'vertical_flip',
+        'rotate_90',
+        'rotate_180',
+        'rotate_270'
+    ])
+    
+    # Ensemble evaluation
+    use_ensemble: bool = True
+    ensemble_method: str = "average"  # Options: "average", "voting"
+    
     # Learning rate scheduler
     scheduler_type: str = "onecycle"  # Options: "plateau", "onecycle"
     
