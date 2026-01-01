@@ -43,14 +43,14 @@ class Config:
     num_classes: int = 2  # exudates and haemorrhages
     
     # Training hyperparameters
-    batch_size: int = 4
+    batch_size: int = 8  # Maximize GPU usage (16GB available)
     num_epochs: int = 50  # Full training
     learning_rate: float = 1e-3  # Higher for OneCycleLR
     max_learning_rate: float = 1e-3  # Peak LR for OneCycleLR
     weight_decay: float = 1e-5
     
     # Gradient accumulation (simulate larger batch)
-    accumulation_steps: int = 4  # Effective batch_size = 4 * 4 = 16
+    accumulation_steps: int = 2  # Effective batch_size = 8 * 2 = 16
     
     # Loss function configuration
     loss_type: str = "dice_focal"  # Options: "bce", "dice", "focal", "dice_focal"
@@ -85,7 +85,7 @@ class Config:
     scheduler_type: str = "onecycle"  # Options: "plateau", "onecycle"
     
     # Early stopping
-    early_stopping_patience: int = 15
+    early_stopping_patience: int = 20  # More patience for EfficientNet-B4
     
     # Cross-validation
     n_folds: int = 5
@@ -93,7 +93,7 @@ class Config:
     
     # Model
     model_name: str = "unet"
-    encoder_name: str = "resnet34"
+    encoder_name: str = "efficientnet-b4"  # Much more powerful (19M params)
     encoder_weights: str = "imagenet"
     
     # Training device

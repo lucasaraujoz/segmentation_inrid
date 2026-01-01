@@ -98,9 +98,9 @@ class TrainAndEvalWorker:
                         weighted_dice = 0
                         weighted_focal = 0
                         for c in range(num_classes):
-                            # Extract class-specific predictions and targets
-                            pred_c = pred[:, c:c+1, :, :]
-                            target_c = target[:, c:c+1, :, :]
+                            # Extract class-specific predictions and targets (use contiguous())
+                            pred_c = pred[:, c:c+1, :, :].contiguous()
+                            target_c = target[:, c:c+1, :, :].contiguous()
                             
                             dice_c = self.dice_loss(pred_c, target_c)
                             focal_c = self.focal_loss(pred_c, target_c)
