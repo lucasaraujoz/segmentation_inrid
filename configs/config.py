@@ -92,9 +92,15 @@ class Config:
     random_state: int = 42
     
     # Model
-    model_name: str = "unet"
+    model_name: str = "unet"  # Options: "unet", "unet_aspp", "unetplusplus"
     encoder_name: str = "efficientnet-b4"  # Much more powerful (19M params)
     encoder_weights: str = "imagenet"
+    
+    # ASPP (Atrous Spatial Pyramid Pooling) configuration
+    # Only used when model_name = "unet_aspp"
+    use_aspp: bool = False  # Set to True to enable ASPP in bottleneck
+    aspp_rates: List[int] = field(default_factory=lambda: [6, 12, 18])  # Dilation rates
+    aspp_channels: int = 256  # Output channels from ASPP
     
     # Training device
     device: str = "cuda"

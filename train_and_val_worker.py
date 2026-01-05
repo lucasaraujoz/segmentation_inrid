@@ -136,6 +136,28 @@ class TrainAndEvalWorker:
                 classes=self.config.num_classes,
                 activation=None  # We'll apply sigmoid in forward
             )
+        elif self.config.model_name == "unet_aspp":
+            # Import here to avoid circular dependency
+            from models.unet_aspp import create_unet_aspp
+            model = create_unet_aspp(self.config)
+        elif self.config.model_name == "unet_attention":
+            # Import here to avoid circular dependency
+            from models.unet_attention import create_unet_attention
+            model = create_unet_attention(
+                encoder_name=self.config.encoder_name,
+                encoder_weights=self.config.encoder_weights,
+                in_channels=3,
+                classes=self.config.num_classes
+            )
+        elif self.config.model_name == "unet_wavelet_skip1":
+            # Import here to avoid circular dependency
+            from models.unet_wavelet_skip1 import UnetWaveletSkip1
+            model = UnetWaveletSkip1(
+                encoder_name=self.config.encoder_name,
+                encoder_weights=self.config.encoder_weights,
+                in_channels=3,
+                classes=self.config.num_classes
+            )
         elif self.config.model_name == "unetplusplus":
             model = smp.UnetPlusPlus(
                 encoder_name=self.config.encoder_name,

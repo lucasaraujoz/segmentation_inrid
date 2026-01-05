@@ -1,0 +1,74 @@
+Resumo dos Experimentos - 3 de Janeiro de 2026
+Baseline (Verificado)
+Arquitetura: EfficientNet-B4 + UNet
+Preprocessamento: CLAHE no canal L (LAB)
+Test Dice (Ensemble + TTA): 0.6448
+CV Dice: 0.5521
+Status: ✅ Confirmado como referência
+Experimentos Testados Hoje
+1. Green Channel CLAHE
+Objetivo: Melhorar contraste aplicando CLAHE no canal Green (RGB) ao invés do canal L (LAB)
+
+Resultado:
+
+CV Dice: 0.5212
+Diferença: -5.59% vs baseline
+Status: ❌ FALHOU
+Conclusão: Canal L (LAB) é superior para realçar lesões em imagens de retina
+
+2. Morphological Post-Processing
+Objetivo: Remover ruído das predições com operações morfológicas (abertura, fechamento)
+
+Configurações testadas (sem retreinamento):
+
+Configuração	Test Dice	Diferença
+Baseline (sem post-proc)	0.6573	-
+Opening only	0.6450	-1.88%
+Opening + Closing	0.6452	-1.85%
+Aggressive (k=3, iter=2)	0.6200	-5.68%
+Conservative (k=2, iter=1)	0.6523	-0.76%
+Status: ❌ TODAS as configurações PIORARAM
+
+Conclusão: Lesões muito pequenas (microaneurismas ~10-50 pixels). Post-processamento morfológico remove verdadeiros positivos.
+
+3. ASPP Decoder (Última Tentativa)
+Objetivo: Adicionar Atrous Spatial Pyramid Pooling nos blocos do decoder para capturar contexto multi-escala durante upsampling
+
+Arquitetura:
+
+Encoder: EfficientNet-B4 (pretrained)
+Decoder: UNet com ASPP nos níveis [0, 1, 2]
+ASPP: Dilated convolutions com rates [6, 12, 18] + Global Pooling
+Loss: Dice (50%) + Focal (50%)
+Resultado:
+
+Test Dice (Ensemble + TTA): 0.5947
+Diferença: -7.77% vs baseline
+Status: ❌ FALHOU
+CV por Fold:
+
+Fold 1: 0.5412
+Fold 2: 0.2748 (muito ruim)
+Fold 3: 0.5095
+Fold 4: 0.4793
+Fold 5: 0.4721
+Conclusão: Dataset muito pequeno (54 imagens) não permite modificações arquiteturais complexas. ASPP adiciona muitos parâmetros que overfittam.
+
+Resumo Geral
+✅ O que funciona:
+EfficientNet-B4 + UNet simples
+CLAHE no canal L (LAB)
+Ensemble (5 folds) + TTA (4 transforms)
+❌ O que NÃO funciona (54 imagens é muito pouco):
+Boundary Loss (-99%)
+ASPP Bottleneck (-3.30%)
+Attention Gates (-4.13% até -20.69%)
+Green Channel CLAHE (-5.59%)
+Morphological post-processing (-0.76% até -5.68%)
+ASPP Decoder (-7.77%)
+Lições Aprendidas:
+Dataset pequeno (54 imagens) limita severamente modificações arquiteturais
+Lesões muito pequenas (microaneurismas) são sensíveis a processamento morfológico
+Preprocessing simples (LAB CLAHE) > abordagens complexas
+Arquitetura simples (UNet padrão) > modificações sofisticadas (ASPP, Attention)
+Baseline permanece imbatível: 0.6448

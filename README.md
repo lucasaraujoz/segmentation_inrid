@@ -1,32 +1,119 @@
-# ROP Segmentation Project
+# ROP Segmentation - TAPI INRID
 
-Projeto de segmentação de lesões de retinopatia diabética focado em **Exudatos** (Hard e Soft) e **Hemorragias**.
+Projeto de segmentação de lesões em imagens de retina para detecção de Retinopatia da Prematuridade (ROP).
 
-## Estrutura do Projeto
+## 🎯 Melhor Resultado
+
+**Test Dice: 0.6448** (Ensemble 5-fold + TTA)
+
+- **Arquitetura:** EfficientNet-B4 + UNet
+- **Dataset:** 54 treino / 27 teste
+- **Pré-processamento:** CLAHE LAB L-channel
+- **Ensemble:** 5 folds + 4 transformações TTA
+
+## 📁 Estrutura do Projeto
 
 ```
 tapi_inrid/
-├── configs/
-│   ├── __init__.py
-│   └── config.py              # Configurações e hiperparâmetros
-├── data_factory/
-│   ├── __init__.py
-│   ├── data_factory.py        # Gerenciamento de metadados e splits
-│   └── ROP_dataset.py         # PyTorch Dataset
-├── utils/
-│   ├── __init__.py
-│   └── utils.py               # Funções auxiliares
-├── notebooks/
-│   └── data_exploration.ipynb # Análise exploratória
-├── train_and_val_worker.py    # Treino e avaliação
-├── main.py                    # Pipeline principal
-├── requirements.txt           # Dependências
-└── README.md
+├── 📂 configs/              # Configurações do projeto
+├── 📂 data_factory/         # Dataset loaders e transforms
+├── 📂 models/               # Arquiteturas de modelos
+├── 📂 utils/                # Funções utilitárias
+│
+├── 📂 experiments/          # Scripts de treinamento dos experimentos
+│   ├── README.md            # Guia dos experimentos
+│   ├── verify_baseline.py   # ✅ Reproduzir baseline (0.6448)
+│   └── train_*.py           # Outros experimentos
+│
+├── 📂 docs/                 # Documentação
+│   ├── README.md            # Guia da documentação
+│   └── EXPERIMENTOS.md      # 📊 Análise completa de 10+ experimentos
+│
+├── 📂 logs/                 # Logs de todos os treinamentos
+│   └── README.md            # Guia dos logs
+│
+├── 📂 outputs/              # Resultados e checkpoints
+│   ├── checkpoints/         # Modelos treinados
+│   │   └── baseline_verify/ # ✅ Melhor modelo (0.6448)
+│   └── *.json               # Resultados em JSON
+│
+├── 📂 notebooks/            # Jupyter notebooks para análise
+├── 📂 A. Segmentation/      # Dataset original
+│
+├── main.py                  # Script principal de treinamento
+└── requirements.txt         # Dependências Python
 ```
 
-## Arquitetura
+## 🚀 Quick Start
 
-O projeto segue os princípios definidos no `AGENT.md`:
+### 1. Instalação
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Reproduzir Melhor Resultado
+```bash
+python experiments/verify_baseline.py
+```
+
+### 3. Avaliar Test Set
+```bash
+python experiments/evaluate_test_ensemble.py
+```
+
+## 📊 Experimentos Realizados
+
+Total: **10 experimentos completos** + 3 interrompidos
+
+### Ranking de Resultados
+
+| # | Experimento | Test Dice | Δ vs Baseline | Status |
+|---|-------------|-----------|---------------|--------|
+| 🥇 | **Baseline (EfficientNet-B4 + UNet)** | **0.6448** | **0.00%** | ✅ **MELHOR** |
+| 2 | Extreme Augmentation | 0.6422 | -0.40% | ❌ |
+| 3 | ASPP Bottleneck | 0.6230 | -3.30% | ❌ |
+| 4 | Attention Gates (Fixed) | 0.6182 | -4.13% | ❌ |
+| 5 | Moderate Augmentation | 0.6009 | -6.80% | ❌ |
+| 6 | ASPP Decoder | 0.5947 | -7.77% | ❌ |
+| 7 | Green Channel CLAHE | CV: 0.5212 | -5.59% | ❌ Interrompido |
+| 8 | Attention Gates (Buggy) | 0.5109 | -20.69% | ❌ Bug |
+| 9 | Boundary Loss | 0.0100 | -99.0% | ❌ Falha |
+| - | Frangi Enhancement | N/A | N/A | ❌ Abandonado |
+
+**Ver análise completa:** [docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md)
+
+## 🔍 Principal Descoberta
+
+**Dataset muito pequeno (54 imagens) limita melhorias:**
+
+❌ Arquiteturas complexas → Overfitting  
+❌ Augmentação avançada → Piora resultados  
+❌ Processamento de imagem → Perde informação  
+✅ **Baseline simples é o melhor para este dataset**
+
+## 📖 Documentação
+
+- **[docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md)** - Análise detalhada de todos os experimentos
+  - Configurações completas
+  - Resultados e métricas
+  - Análises técnicas profundas
+  - Insights e lições aprendidas
+  
+- **[experiments/README.md](experiments/README.md)** - Guia dos scripts de treinamento
+
+- **[logs/README.md](logs/README.md)** - Guia dos logs de treinamento
+
+## 🎓 Principais Lições
+
+1. **Data is King** - 54 imagens é muito pouco para técnicas avançadas
+2. **Cores importam** - Exsudatos (amarelos) ≠ Hemorragias (vermelhas)
+3. **Simplicidade vence** - Baseline forte é difícil de bater
+4. **Validação é crítica** - Cross-validation detecta overfitting
+5. **Context matters** - Técnicas modernas não funcionam para tudo
+
+## Arquitetura do Baseline
+
+O melhor resultado usa os princípios:
 
 ### 1. **Config** (`configs/config.py`)
 - Gerencia todos os hiperparâmetros
