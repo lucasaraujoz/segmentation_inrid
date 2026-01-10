@@ -5,5 +5,4 @@ A. Segmentation
 outputs/
 inrid.zip
 *.log
-tests/
 nohup.out
