@@ -37,7 +37,7 @@ def main():
     config.encoder_weights = "imagenet"
     config.resolution = 512
     config.batch_size = 8
-    config.num_epochs = 50
+    config.num_epochs = 100
     config.learning_rate = 1e-4
     
     # Override checkpoint dir

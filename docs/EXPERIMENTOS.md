@@ -1013,8 +1013,102 @@ Pior pós-proc (open 3x3):    0.6076 (-7.56%)
 
 ---
 
+## 🧩 EXPERIMENTO 12: PATCH-BASED SEGMENTATION
+
+### Motivação
+Processar imagens em **resolução completa** (4288×2848) em vez de resize para 512×512:
+- Preservar lesões pequenas (microaneurismas)
+- Manter detalhes finos e bordas nítidas
+- Aumentar amostras de treinamento (70× patches por imagem)
+
+### Abordagem
+**Sliding Window com Overlap:**
+```
+Imagem original: 4288×2848
+Patch size: 512×512
+Overlap: 50px (10%)
+Stride: 462px
+Grid: 10×7 = 70 patches por imagem
+```
+
+### Implementação
+**Arquivos criados:**
+- `data_factory/ROP_dataset_patches.py` - Dataset que extrai patches
+- `experiments/train_patch_based.py` - Script de treinamento
+- `tests/test_patch_dataset.py` - Verificação do dataset
+
+**Pipeline de Treinamento:**
+1. Carregar imagem completa (4288×2848)
+2. Aplicar CLAHE em resolução completa
+3. Extrair 70 patches 512×512 com overlap
+4. Treinar U-Net em patches individuais
+
+**Pipeline de Inferência:**
+1. Extrair patches da imagem de teste
+2. Predizer cada patch
+3. **Reconstruir** imagem completa
+4. **Média** nas regiões de overlap
+5. Avaliar na imagem reconstruída
+
+### Configuração
+```python
+PATCH_SIZE = 512
+OVERLAP = 50
+BATCH_SIZE = 16      # Maior batch (patches menores)
+ENCODER = 'resnet34' # Baseline encoder
+EPOCHS = 50
+LOSS = 'dice+focal'
+```
+
+### Estatísticas
+```
+Dataset:
+  Imagens treino: 54
+  Patches/imagem: ~70
+  Total patches:  ~3,780
+  Aumento:        70× mais amostras por época
+
+Test verificado:
+  ✓ 70 patches por imagem
+  ✓ Dimensões corretas (512×512)
+  ✓ Overlap funcionando
+  ✓ Reconstrução implementada
+```
+
+### Vantagens Esperadas
+1. **Resolução completa** - Sem perda de informação
+2. **70× mais amostras** - Melhor generalização
+3. **Batch size maior** - Patches menores = mais eficiente
+4. **Lesões pequenas** - Preservadas em full resolution
+5. **Bordas nítidas** - Sem blur do downsampling
+
+### Status
+🏗️ **IMPLEMENTADO E TESTADO** - Pronto para executar
+
+**Resultado esperado:**
+```
+Baseline (resize 512×512): 0.6448
+Patch-based (esperado):    0.65-0.70  (+5-10%)
+Melhoria principal:        Microaneurismas e bordas
+```
+
+### Como Executar
+```bash
+# Testar dataset
+python tests/test_patch_dataset.py
+
+# Treinar modelo
+python experiments/train_patch_based.py
+```
+
+### Documentação
+- `docs/EXPERIMENTO_12_PATCH_BASED.md` - Documentação completa
+- `experiments/PATCH_BASED_README.md` - Guia rápido
+
+---
+
 **Documento gerado em:** Janeiro 2026  
-**Total de experimentos:** 10 completos + 3 interrompidos  
+**Total de experimentos:** 11 completos + 1 implementado (patch-based)  
 **Total de modelos treinados:** ~60 (5 folds × 10 experimentos + variações)  
 **Tempo total estimado:** ~40-50 horas de GPU  
 **Melhor resultado:** **Baseline 0.6448** ✅

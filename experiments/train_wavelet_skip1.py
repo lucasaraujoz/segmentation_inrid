@@ -51,12 +51,12 @@ def main():
     
     # Config
     config = Config()
-    config.batch_size = 8
+    config.batch_size = 4
     config.num_epochs = 100
     config.learning_rate = 1e-4
     config.encoder_name = 'efficientnet-b4'
     config.num_classes = 2
-    config.img_size = 512
+    config.img_size = 3000
     config.apply_clahe = False  # SEM CLAHE (baseline 0.6501)
     config.model_name = 'unet_wavelet_skip1'  # Modelo customizado
     
