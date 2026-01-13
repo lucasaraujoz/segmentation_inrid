@@ -22,19 +22,19 @@ tapi_inrid/
 │
 ├── 📂 experiments/          # Scripts de treinamento dos experimentos
 │   ├── README.md            # Guia dos experimentos
-│   ├── verify_baseline.py   # ✅ Reproduzir baseline (0.6448)
+│   ├── verify_baseline.py   # Reproduzir baseline (0.6448) !
 │   └── train_*.py           # Outros experimentos
 │
 ├── 📂 docs/                 # Documentação
 │   ├── README.md            # Guia da documentação
-│   └── EXPERIMENTOS.md      # 📊 Análise completa de 10+ experimentos
+│   └── EXPERIMENTOS.md      # Análise completa experimentos
 │
 ├── 📂 logs/                 # Logs de todos os treinamentos
 │   └── README.md            # Guia dos logs
 │
 ├── 📂 outputs/              # Resultados e checkpoints
 │   ├── checkpoints/         # Modelos treinados
-│   │   └── baseline_verify/ # ✅ Melhor modelo (0.6448)
+│   │   └── baseline_verify/ # Melhor modelo (0.6448)
 │   └── *.json               # Resultados em JSON
 │
 ├── 📂 notebooks/            # Jupyter notebooks para análise
@@ -237,24 +237,6 @@ Edite [configs/config.py](configs/config.py) para ajustar:
 ### Cross-Validation
 - **GroupKFold** (5 folds)
 - Agrupamento por paciente para evitar data leakage
-
-## Princípios de Design
-
-Seguindo o `AGENT.md`:
-
-✅ **Single Responsibility Principle**
-- Cada classe tem uma responsabilidade clara
-- Separação entre metadados e dados reais
-
-✅ **Reprodutibilidade Científica**
-- Seeds fixos
-- GroupKFold para evitar leakage
-- Configurações centralizadas
-
-✅ **Clareza Arquitetural**
-- Sem mistura de responsabilidades
-- Código orientado à pesquisa
-- Documentação clara
 
 ## Estrutura de Saída
 
