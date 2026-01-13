@@ -69,7 +69,7 @@ Total: **10 experimentos completos** + 3 interrompidos
 
 | # | Experimento | Test Dice | Δ vs Baseline | Status |
 |---|-------------|-----------|---------------|--------|
-| 🥇 | **Baseline (EfficientNet-B4 + UNet)** | **0.6448** | **0.00%** | ✅ **MELHOR** |
+| 1 | **Baseline (EfficientNet-B4 + UNet)** | **0.6448** | **0.00%** | ✅ **MELHOR** |
 | 2 | Extreme Augmentation | 0.6422 | -0.40% | ❌ |
 | 3 | ASPP Bottleneck | 0.6230 | -3.30% | ❌ |
 | 4 | Attention Gates (Fixed) | 0.6182 | -4.13% | ❌ |
@@ -102,14 +102,6 @@ Total: **10 experimentos completos** + 3 interrompidos
 - **[experiments/README.md](experiments/README.md)** - Guia dos scripts de treinamento
 
 - **[logs/README.md](logs/README.md)** - Guia dos logs de treinamento
-
-## 🎓 Principais Lições
-
-1. **Data is King** - 54 imagens é muito pouco para técnicas avançadas
-2. **Cores importam** - Exsudatos (amarelos) ≠ Hemorragias (vermelhas)
-3. **Simplicidade vence** - Baseline forte é difícil de bater
-4. **Validação é crítica** - Cross-validation detecta overfitting
-5. **Context matters** - Técnicas modernas não funcionam para tudo
 
 ## Arquitetura do Baseline
 
@@ -282,20 +274,3 @@ outputs/
 - **IoU (Jaccard Index)**: Métrica complementar
 - Calculadas por classe e média geral
 
-## Contribuindo
-
-Este projeto segue diretrizes estritas de arquitetura definidas no `AGENT.md`. Ao contribuir:
-
-1. Respeite a separação de responsabilidades
-2. Não misture lógica de dados com treino
-3. Mantenha configurações centralizadas
-4. Documente mudanças
-
-## Licença
-
-Este projeto utiliza o dataset IDRiD, que possui licença CC-BY-4.0. Consulte `A. Segmentation/CC-BY-4.0.txt` para detalhes.
-
-## Referências
-
-- Dataset: [IDRiD - Indian Diabetic Retinopathy Image Dataset](https://ieee-dataport.org/open-access/indian-diabetic-retinopathy-image-dataset-idrid)
-- Segmentation Models PyTorch: https://github.com/qubvel/segmentation_models.pytorch

@@ -3,6 +3,8 @@ __pycache__
 .vscode/
 A. Segmentation
 outputs/
+!outputs/frozen_cv_splits.json
+!outputs/cv_splits.json
 inrid.zip
 *.log
 nohup.out
