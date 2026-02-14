@@ -268,7 +268,7 @@ class Phase1TrainWorker:
             images = batch['image'][:4].to(self.device)  # First 4 images
             
             # Reconstruct
-            reconstructions, _, _ = self.model(images)
+            reconstructions = self.model(images)
             
             # Move to CPU and convert to numpy
             images_np = images.cpu().numpy()
