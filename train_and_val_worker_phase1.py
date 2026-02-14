@@ -16,6 +16,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import time
+from torch.cuda.amp import autocast, GradScaler
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,8 @@ class Phase1TrainWorker:
         model: nn.Module,
         device: str = "cuda",
         checkpoint_dir: str = "checkpoints/phase1",
+        use_amp: bool = False,  # Disabled - slower for this model
+        use_compile: bool = False,  # Disabled - needs C compiler
     ):
         """
         Initialize trainer
@@ -42,11 +45,25 @@ class Phase1TrainWorker:
             model: SSMD-UNet Phase 1 model
             device: Device to use (cuda/cpu)
             checkpoint_dir: Directory to save checkpoints
+            use_amp: Use Automatic Mixed Precision (faster, less memory)
+            use_compile: Use torch.compile() (PyTorch 2.0+, 20-30% faster)
         """
         self.model = model.to(device)
+        
+        # Compile model for speed (PyTorch 2.0+)
+        if use_compile and hasattr(torch, 'compile'):
+            logger.info("🚀 Using torch.compile() for faster training")
+            self.model = torch.compile(self.model, mode='reduce-overhead')
+        
         self.device = device
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.use_amp = use_amp
+        self.scaler = GradScaler() if use_amp else None
+        
+        if use_amp:
+            logger.info("⚡ Using Automatic Mixed Precision (AMP) training")
         
         self.train_losses = []
         self.val_losses = []
@@ -156,16 +173,26 @@ class Phase1TrainWorker:
         )
         
         for batch_idx, batch in enumerate(pbar):
-            images = batch['image'].to(self.device)
+            images = batch['image'].to(self.device, non_blocking=True)
             
-            # Forward pass
-            reconstruction, _, _ = self.model(images)
-            loss = criterion(reconstruction, images)
-            
-            # Backward pass
             optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            
+            # Forward pass with mixed precision
+            if self.use_amp:
+                with autocast():
+                    reconstruction = self.model(images)
+                    loss = criterion(reconstruction, images)
+                
+                # Backward pass with gradient scaling
+                self.scaler.scale(loss).backward()
+                self.scaler.step(optimizer)
+                self.scaler.update()
+            else:
+                # Regular forward/backward
+                reconstruction = self.model(images)
+                loss = criterion(reconstruction, images)
+                loss.backward()
+                optimizer.step()
             
             total_loss += loss.item()
             
@@ -185,7 +212,7 @@ class Phase1TrainWorker:
         with torch.no_grad():
             for batch in val_loader:
                 images = batch['image'].to(self.device)
-                reconstruction, _, _ = self.model(images)
+                reconstruction = self.model(images)
                 loss = criterion(reconstruction, images)
                 
                 total_loss += loss.item()

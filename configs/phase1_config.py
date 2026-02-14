@@ -32,8 +32,8 @@ class Phase1Config:
             self.encoder_channels = [64, 128, 256, 512, 1024]
     
     # ==================== TRAINING ====================
-    # Article configuration (batch 16 from article, but reduced to 8 for 15.57GB GPU)
-    batch_size: int = 8  # Reduced from 16 to fit in 15.57GB GPU memory
+    # Article uses batch 16, but 8 fits better in 15.57GB GPU with this model size
+    batch_size: int = 8
     num_epochs: int = 100
     learning_rate: float = 1e-4  # 0.0001 as per article
     momentum: float = 0.9
